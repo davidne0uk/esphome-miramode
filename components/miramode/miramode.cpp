@@ -139,7 +139,14 @@ void MiraModeDevice::trigger_pair() {
 }
 
 void MiraModeDevice::setup() {
-    nvs_flash_init();
+    // nvs_flash_init is idempotent for multiple instances; ESP-IDF handles it
+    esp_err_t ret = nvs_flash_init();
+    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        nvs_flash_erase();
+        ret = nvs_flash_init();
+    }
+    if (ret != ESP_OK)
+        ESP_LOGE(TAG, "[%s] nvs_flash_init failed: %d", this->name_.c_str(), ret);
     this->load_credentials_();
 }
 
@@ -157,7 +164,12 @@ void MiraModeDevice::dump_config() {
                       this->client_id_, this->client_slot_);
 }
 
-std::string MiraModeDevice::nvs_namespace_() {
+std::string MiraModeDevice::nvs_namespace_() const {
+    // nvs_key_ is set by Python codegen from the unique YAML component id,
+    // so it is always distinct between instances. Fallback to name-derived
+    // namespace only if not set (e.g. in tests).
+    if (!this->nvs_key_.empty())
+        return this->nvs_key_;
     std::string ns = "mm_";
     for (char c : this->name_) {
         if (std::isalnum(static_cast<unsigned char>(c)))
@@ -198,10 +210,24 @@ void MiraModeDevice::save_credentials_() {
                  this->name_.c_str(), err);
         return;
     }
-    nvs_set_u32(handle, "client_id",   this->client_id_);
-    nvs_set_u8 (handle, "client_slot", this->client_slot_);
-    nvs_commit(handle);
+    err = nvs_set_u32(handle, "client_id", this->client_id_);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "[%s] nvs_set_u32 client_id failed: %d", this->name_.c_str(), err);
+        nvs_close(handle);
+        return;
+    }
+    err = nvs_set_u8(handle, "client_slot", this->client_slot_);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "[%s] nvs_set_u8 client_slot failed: %d", this->name_.c_str(), err);
+        nvs_close(handle);
+        return;
+    }
+    err = nvs_commit(handle);
     nvs_close(handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "[%s] nvs_commit failed: %d", this->name_.c_str(), err);
+        return;
+    }
     ESP_LOGI(TAG, "[%s] Saved credentials: id=0x%08X slot=%d",
              this->name_.c_str(), this->client_id_, this->client_slot_);
 }

@@ -22,6 +22,7 @@ class MiraModeDevice : public PollingComponent,
   void setup() override;
   void update() override;
   void dump_config() override;
+  // BLE components set up before Wi-Fi — NVS and BLE stack are independent of networking
   float get_setup_priority() const override { return setup_priority::BLUETOOTH; }
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -29,6 +30,9 @@ class MiraModeDevice : public PollingComponent,
 
   void set_name(const std::string &name) { name_ = name; }
   void set_client_name(const std::string &n) { client_name_ = n; }
+  // nvs_key is computed by Python codegen from the component's unique YAML id,
+  // guaranteeing no namespace collisions between instances in the same config.
+  void set_nvs_key(const std::string &k) { nvs_key_ = k; }
 
   void set_outlet1_switch(MiraModeSwitch *sw) { outlet1_switch_ = sw; }
   void set_outlet2_switch(MiraModeSwitch *sw) { outlet2_switch_ = sw; }
@@ -48,6 +52,7 @@ class MiraModeDevice : public PollingComponent,
  protected:
   std::string name_;
   std::string client_name_{"ESPHome"};
+  std::string nvs_key_;
   uint32_t client_id_{0};
   uint8_t  client_slot_{0};
   bool paired_{false};
@@ -74,8 +79,8 @@ class MiraModeDevice : public PollingComponent,
   void handle_notification_(const uint8_t *data, size_t len);
   void dispatch_payload_(uint8_t client_slot, const uint8_t *payload, uint8_t length);
   void load_credentials_();
-  void save_credentials_();
-  std::string nvs_namespace_();
+  void save_credentials_();  // called by gattc_event_handler after successful pair confirmation
+  std::string nvs_namespace_() const;
 };
 
 class MiraModeSwitch : public switch_::Switch, public Component {
