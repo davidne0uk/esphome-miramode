@@ -68,7 +68,7 @@ class MiraModeDevice : public PollingComponent,
   uint8_t expected_length_{0};
 
   static uint16_t crc16_(const uint8_t *data, size_t len);
-  std::vector<uint8_t> build_packet_(const std::vector<uint8_t> &payload, uint32_t id);
+  std::vector<uint8_t> build_packet_(const std::vector<uint8_t> &payload, uint32_t id) const;
   void write_chunks_(const std::vector<uint8_t> &data);
   void write_raw_(const uint8_t *data, size_t len);
   void handle_notification_(const uint8_t *data, size_t len);

@@ -38,7 +38,7 @@ uint16_t MiraModeDevice::crc16_(const uint8_t *data, size_t len) {
 }
 
 std::vector<uint8_t> MiraModeDevice::build_packet_(const std::vector<uint8_t> &payload,
-                                                     uint32_t client_id) {
+                                                     uint32_t client_id) const {
     // CRC is computed over payload || client_id (big-endian 4 bytes)
     std::vector<uint8_t> crc_input = payload;
     crc_input.push_back((client_id >> 24) & 0xFF);
@@ -73,8 +73,8 @@ void MiraModeDevice::write_raw_(const uint8_t *data, size_t len) {
         this->parent()->get_gattc_if(),
         this->parent()->get_conn_id(),
         this->write_handle_,
-        len,
-        const_cast<uint8_t *>(data),
+        static_cast<uint16_t>(len),
+        const_cast<uint8_t *>(data),  // ESP-IDF API is non-const; does not mutate buffer
         ESP_GATT_WRITE_TYPE_NO_RSP,
         ESP_GATT_AUTH_REQ_NONE);
     if (status != ESP_OK)
