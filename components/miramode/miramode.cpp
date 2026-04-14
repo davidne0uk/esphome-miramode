@@ -89,12 +89,12 @@ void MiraModeDevice::request_device_state() {
 }
 
 void MiraModeDevice::control_outlets(bool outlet1, bool outlet2, float temperature) {
+    float clamped_temp = std::max(0.0f, std::min(6553.5f, temperature));
     this->outlet1_state_ = outlet1;
     this->outlet2_state_ = outlet2;
-    this->target_temp_   = temperature;
+    this->target_temp_   = clamped_temp;
 
-    uint16_t temp_val = static_cast<uint16_t>(
-        std::max(0.0f, std::min(65535.0f, std::round(temperature * 10.0f))));
+    uint16_t temp_val = static_cast<uint16_t>(std::round(clamped_temp * 10.0f));
 
     std::vector<uint8_t> payload = {
         this->client_slot_,
@@ -110,12 +110,19 @@ void MiraModeDevice::control_outlets(bool outlet1, bool outlet2, float temperatu
 }
 
 void MiraModeDevice::trigger_pair() {
+    if (this->pairing_pending_) {
+        ESP_LOGW(TAG, "[%s] Pairing already in progress, ignoring duplicate request",
+                 this->name_.c_str());
+        return;
+    }
     this->pending_client_id_ = esp_random();
     this->pairing_pending_   = true;
 
     std::vector<uint8_t> name_bytes(this->client_name_.begin(),
                                      this->client_name_.end());
-    name_bytes.resize(20, 0);  // pad/truncate to exactly 20 bytes
+    if (name_bytes.size() > 20)
+        name_bytes.resize(20);   // truncate long names
+    name_bytes.resize(20, 0);    // zero-pad short names to exactly 20 bytes
 
     std::vector<uint8_t> payload = {0x00, 0xEB, 24};
     payload.push_back((this->pending_client_id_ >> 24) & 0xFF);
