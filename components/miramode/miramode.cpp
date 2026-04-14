@@ -3,6 +3,7 @@
 #include <cmath>
 #include <nvs_flash.h>
 #include <nvs.h>
+#include <esp_random.h>
 
 namespace esphome {
 namespace miramode {
@@ -79,6 +80,54 @@ void MiraModeDevice::write_raw_(const uint8_t *data, size_t len) {
         ESP_GATT_AUTH_REQ_NONE);
     if (status != ESP_OK)
         ESP_LOGW(TAG, "[%s] write_char failed: %d", this->name_.c_str(), status);
+}
+
+void MiraModeDevice::request_device_state() {
+    std::vector<uint8_t> payload = {this->client_slot_, 0x07, 0x00};
+    auto pkt = this->build_packet_(payload, this->client_id_);
+    this->write_raw_(pkt.data(), pkt.size());
+}
+
+void MiraModeDevice::control_outlets(bool outlet1, bool outlet2, float temperature) {
+    this->outlet1_state_ = outlet1;
+    this->outlet2_state_ = outlet2;
+    this->target_temp_   = temperature;
+
+    uint16_t temp_val = static_cast<uint16_t>(
+        std::max(0.0f, std::min(65535.0f, std::round(temperature * 10.0f))));
+
+    std::vector<uint8_t> payload = {
+        this->client_slot_,
+        0x87, 0x05,
+        (outlet1 || outlet2) ? TIMER_RUNNING : TIMER_PAUSED,
+        static_cast<uint8_t>((temp_val >> 8) & 0xFF),
+        static_cast<uint8_t>( temp_val       & 0xFF),
+        outlet1 ? OUTLET_RUNNING : OUTLET_STOPPED,
+        outlet2 ? OUTLET_RUNNING : OUTLET_STOPPED,
+    };
+    auto pkt = this->build_packet_(payload, this->client_id_);
+    this->write_raw_(pkt.data(), pkt.size());
+}
+
+void MiraModeDevice::trigger_pair() {
+    this->pending_client_id_ = esp_random();
+    this->pairing_pending_   = true;
+
+    std::vector<uint8_t> name_bytes(this->client_name_.begin(),
+                                     this->client_name_.end());
+    name_bytes.resize(20, 0);  // pad/truncate to exactly 20 bytes
+
+    std::vector<uint8_t> payload = {0x00, 0xEB, 24};
+    payload.push_back((this->pending_client_id_ >> 24) & 0xFF);
+    payload.push_back((this->pending_client_id_ >> 16) & 0xFF);
+    payload.push_back((this->pending_client_id_ >>  8) & 0xFF);
+    payload.push_back( this->pending_client_id_        & 0xFF);
+    payload.insert(payload.end(), name_bytes.begin(), name_bytes.end());
+
+    auto pkt = this->build_packet_(payload, MAGIC_ID);
+    ESP_LOGI(TAG, "[%s] Sending pair request (client_id=0x%08X)",
+             this->name_.c_str(), this->pending_client_id_);
+    this->write_chunks_(pkt);
 }
 
 }  // namespace miramode
