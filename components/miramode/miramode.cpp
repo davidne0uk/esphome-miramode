@@ -1,5 +1,6 @@
 #include "miramode.h"
 #include "esphome/core/log.h"
+#include <cctype>
 #include <cmath>
 #include <nvs_flash.h>
 #include <nvs.h>
@@ -135,6 +136,74 @@ void MiraModeDevice::trigger_pair() {
     ESP_LOGI(TAG, "[%s] Sending pair request (client_id=0x%08X)",
              this->name_.c_str(), this->pending_client_id_);
     this->write_chunks_(pkt);
+}
+
+void MiraModeDevice::setup() {
+    nvs_flash_init();
+    this->load_credentials_();
+}
+
+void MiraModeDevice::update() {
+    if (this->paired_ && this->node_state == ClientState::Established) {
+        this->request_device_state();
+    }
+}
+
+void MiraModeDevice::dump_config() {
+    ESP_LOGCONFIG(TAG, "MiraMode '%s':", this->name_.c_str());
+    ESP_LOGCONFIG(TAG, "  Paired: %s", this->paired_ ? "yes" : "no");
+    if (this->paired_)
+        ESP_LOGCONFIG(TAG, "  Client ID: 0x%08X  Slot: %d",
+                      this->client_id_, this->client_slot_);
+}
+
+std::string MiraModeDevice::nvs_namespace_() {
+    std::string ns = "mm_";
+    for (char c : this->name_) {
+        if (std::isalnum(static_cast<unsigned char>(c)))
+            ns += c;
+        if (ns.size() == 15)
+            break;
+    }
+    return ns;
+}
+
+void MiraModeDevice::load_credentials_() {
+    nvs_handle_t handle;
+    std::string ns = this->nvs_namespace_();
+    esp_err_t err = nvs_open(ns.c_str(), NVS_READONLY, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGI(TAG, "[%s] No NVS credentials (not yet paired)", this->name_.c_str());
+        return;
+    }
+    uint32_t id   = 0;
+    uint8_t  slot = 0;
+    if (nvs_get_u32(handle, "client_id",   &id)   == ESP_OK &&
+        nvs_get_u8 (handle, "client_slot", &slot) == ESP_OK) {
+        this->client_id_   = id;
+        this->client_slot_ = slot;
+        this->paired_      = true;
+        ESP_LOGI(TAG, "[%s] Loaded credentials: id=0x%08X slot=%d",
+                 this->name_.c_str(), id, slot);
+    }
+    nvs_close(handle);
+}
+
+void MiraModeDevice::save_credentials_() {
+    nvs_handle_t handle;
+    std::string ns = this->nvs_namespace_();
+    esp_err_t err = nvs_open(ns.c_str(), NVS_READWRITE, &handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "[%s] Failed to open NVS for writing: %d",
+                 this->name_.c_str(), err);
+        return;
+    }
+    nvs_set_u32(handle, "client_id",   this->client_id_);
+    nvs_set_u8 (handle, "client_slot", this->client_slot_);
+    nvs_commit(handle);
+    nvs_close(handle);
+    ESP_LOGI(TAG, "[%s] Saved credentials: id=0x%08X slot=%d",
+             this->name_.c_str(), this->client_id_, this->client_slot_);
 }
 
 }  // namespace miramode
