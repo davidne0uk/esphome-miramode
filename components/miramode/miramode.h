@@ -22,7 +22,7 @@ class MiraModeDevice : public PollingComponent,
   void setup() override;
   void update() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::BLUETOOTH; }
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                             esp_ble_gattc_cb_param_t *param) override;

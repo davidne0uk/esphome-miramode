@@ -12,6 +12,7 @@ static const char *const TAG = "miramode";
 static const uint32_t MAGIC_ID        = 0x54D2EE63;
 static const uint8_t  OUTLET_RUNNING  = 0x64;
 static const uint8_t  OUTLET_STOPPED  = 0x00;
+static const uint8_t  TIMER_STOPPED   = 0x00;
 static const uint8_t  TIMER_RUNNING   = 0x01;
 static const uint8_t  TIMER_PAUSED    = 0x03;
 
