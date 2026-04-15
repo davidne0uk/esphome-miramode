@@ -76,9 +76,9 @@ async def to_code(config):
 
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_client_name(config[CONF_CLIENT_NAME]))
-    # nvs_key is derived from the component's unique YAML id (str form)
-    # so each instance gets a distinct NVS namespace regardless of name
-    cg.add(var.set_nvs_key(str(config[CONF_ID])))
+    # nvs_key is derived from the component's unique YAML id (str form).
+    # Truncated to 15 chars to satisfy ESP-IDF NVS namespace length limit.
+    cg.add(var.set_nvs_key(str(config[CONF_ID])[:15]))
 
     if CONF_OUTLET1 in config:
         sw = await switch.new_switch(config[CONF_OUTLET1])
