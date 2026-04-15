@@ -233,14 +233,17 @@ void MiraModeDevice::save_credentials_() {
 }
 
 void MiraModeDevice::handle_notification_(const uint8_t *data, size_t len) {
-    // Handle fragmented packets (two-part notifications)
-    if (!this->partial_payload_.empty()) {
+    // Handle fragmented packets (two-part notifications).
+    // Use expected_length_ > 0 as sentinel — more robust than partial_payload_.empty()
+    // which would fail for a zero-payload first fragment.
+    if (this->expected_length_ > 0) {
         this->partial_payload_.insert(this->partial_payload_.end(), data, data + len);
         if (this->partial_payload_.size() >= this->expected_length_) {
             this->dispatch_payload_(this->partial_client_slot_,
                                     this->partial_payload_.data(),
                                     this->expected_length_);
             this->partial_payload_.clear();
+            this->expected_length_ = 0;
         }
         return;
     }
@@ -304,6 +307,9 @@ void MiraModeDevice::dispatch_payload_(uint8_t client_slot,
         ESP_LOGD(TAG, "[%s] State: target=%.1f actual=%.1f o1=%d o2=%d rem=%d",
                  this->name_.c_str(), target_temp, actual_temp, outlet1, outlet2, remaining);
 
+        this->outlet1_state_ = outlet1;
+        this->outlet2_state_ = outlet2;
+        this->target_temp_   = target_temp;
         if (this->outlet1_switch_)     this->outlet1_switch_->set_state_from_device(outlet1);
         if (this->outlet2_switch_)     this->outlet2_switch_->set_state_from_device(outlet2);
         if (this->actual_temp_sensor_) this->actual_temp_sensor_->publish_state(actual_temp);
@@ -318,6 +324,12 @@ void MiraModeDevice::dispatch_payload_(uint8_t client_slot,
         bool  outlet1      = (payload[6] == OUTLET_RUNNING);
         bool  outlet2      = (payload[7] == OUTLET_RUNNING);
 
+        ESP_LOGD(TAG, "[%s] Controls operated: target=%.1f actual=%.1f o1=%d o2=%d",
+                 this->name_.c_str(), target_temp, actual_temp, outlet1, outlet2);
+
+        this->outlet1_state_ = outlet1;
+        this->outlet2_state_ = outlet2;
+        this->target_temp_   = target_temp;
         if (this->outlet1_switch_)     this->outlet1_switch_->set_state_from_device(outlet1);
         if (this->outlet2_switch_)     this->outlet2_switch_->set_state_from_device(outlet2);
         if (this->actual_temp_sensor_) this->actual_temp_sensor_->publish_state(actual_temp);
