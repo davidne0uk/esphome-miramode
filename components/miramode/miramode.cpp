@@ -463,5 +463,31 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
     }
 }
 
+// ── MiraModeSwitch ──────────────────────────────────────────────────────────
+
+void MiraModeSwitch::write_state(bool state) {
+    if (!this->parent_) return;
+    bool o1 = (this->outlet_ == 1) ? state : this->parent_->outlet1_state_;
+    bool o2 = (this->outlet_ == 2) ? state : this->parent_->outlet2_state_;
+    this->parent_->control_outlets(o1, o2, this->parent_->target_temp_);
+}
+
+// ── MiraModeNumber ──────────────────────────────────────────────────────────
+
+void MiraModeNumber::control(float value) {
+    if (!this->parent_) return;
+    this->parent_->control_outlets(
+        this->parent_->outlet1_state_,
+        this->parent_->outlet2_state_,
+        value);
+}
+
+// ── MiraModeButton ──────────────────────────────────────────────────────────
+
+void MiraModeButton::press_action() {
+    if (!this->parent_) return;
+    this->parent_->trigger_pair();
+}
+
 }  // namespace miramode
 }  // namespace esphome
