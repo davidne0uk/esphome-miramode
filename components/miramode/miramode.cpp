@@ -401,9 +401,11 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
             && count > 0) {
             this->read_handle_ = char_elem.char_handle;
             ESP_LOGI(TAG, "[%s] Read handle: 0x%04X", this->name_.c_str(), this->read_handle_);
-            esp_ble_gattc_register_for_notify(gattc_if,
-                                               this->parent()->get_remote_bda(),
-                                               this->read_handle_);
+            esp_err_t notify_err = esp_ble_gattc_register_for_notify(
+                gattc_if, this->parent()->get_remote_bda(), this->read_handle_);
+            if (notify_err != ESP_OK)
+                ESP_LOGW(TAG, "[%s] register_for_notify failed: %d",
+                         this->name_.c_str(), notify_err);
         }
 
         if (!this->write_handle_ || !this->read_handle_)
@@ -424,12 +426,15 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
                 gattc_if, param->reg_for_notify.conn_id,
                 this->read_handle_, cccd_uuid, &descr, &count) == ESP_OK
             && count > 0) {
-            esp_ble_gattc_write_char_descr(
+            esp_err_t descr_err = esp_ble_gattc_write_char_descr(
                 gattc_if, param->reg_for_notify.conn_id,
                 descr.handle, sizeof(notify_en),
                 reinterpret_cast<uint8_t *>(&notify_en),
                 ESP_GATT_WRITE_TYPE_RSP,
                 ESP_GATT_AUTH_REQ_NONE);
+            if (descr_err != ESP_OK)
+                ESP_LOGW(TAG, "[%s] write_char_descr (CCCD) failed: %d",
+                         this->name_.c_str(), descr_err);
         }
         this->node_state = ClientState::Established;
         ESP_LOGI(TAG, "[%s] Ready", this->name_.c_str());
@@ -444,10 +449,11 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
         break;
 
     case ESP_GATTC_DISCONNECT_EVT:
-        this->write_handle_ = 0;
-        this->read_handle_  = 0;
+        this->write_handle_    = 0;
+        this->read_handle_     = 0;
         this->partial_payload_.clear();
         this->expected_length_ = 0;
+        this->pairing_pending_ = false;  // prevent trigger_pair() lockout on reconnect
         this->node_state = ClientState::Idle;
         ESP_LOGI(TAG, "[%s] Disconnected", this->name_.c_str());
         break;
