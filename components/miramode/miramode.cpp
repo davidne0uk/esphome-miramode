@@ -232,5 +232,101 @@ void MiraModeDevice::save_credentials_() {
              this->name_.c_str(), this->client_id_, this->client_slot_);
 }
 
+void MiraModeDevice::handle_notification_(const uint8_t *data, size_t len) {
+    // Handle fragmented packets (two-part notifications)
+    if (!this->partial_payload_.empty()) {
+        this->partial_payload_.insert(this->partial_payload_.end(), data, data + len);
+        if (this->partial_payload_.size() >= this->expected_length_) {
+            this->dispatch_payload_(this->partial_client_slot_,
+                                    this->partial_payload_.data(),
+                                    this->expected_length_);
+            this->partial_payload_.clear();
+        }
+        return;
+    }
+
+    if (len < 3) {
+        ESP_LOGW(TAG, "[%s] Notification too short (%d bytes)", this->name_.c_str(), (int) len);
+        return;
+    }
+
+    uint8_t client_slot    = data[0] - 0x40;
+    uint8_t payload_length = data[2];
+    const uint8_t *payload = data + 3;
+    size_t payload_avail   = len - 3;
+
+    if (payload_avail < payload_length) {
+        // Partial — store and wait for continuation
+        this->partial_client_slot_   = client_slot;
+        this->expected_length_       = payload_length;
+        this->partial_payload_.assign(payload, payload + payload_avail);
+        return;
+    }
+
+    this->dispatch_payload_(client_slot, payload, payload_length);
+}
+
+void MiraModeDevice::dispatch_payload_(uint8_t client_slot,
+                                        const uint8_t *payload,
+                                        uint8_t length) {
+    auto read_temp = [](const uint8_t *p) -> float {
+        return static_cast<float>((p[0] << 8) | p[1]) / 10.0f;
+    };
+
+    if (length == 1) {
+        bool ok = (payload[0] == 1);
+        ESP_LOGI(TAG, "[%s] Success/failure: %s", this->name_.c_str(), ok ? "OK" : "FAIL");
+        if (this->pairing_pending_) {
+            if (ok) {
+                this->client_id_       = this->pending_client_id_;
+                this->client_slot_     = client_slot;
+                this->paired_          = true;
+                this->pairing_pending_ = false;
+                this->save_credentials_();
+                ESP_LOGI(TAG, "[%s] Paired! slot=%d id=0x%08X",
+                         this->name_.c_str(), client_slot, this->client_id_);
+            } else {
+                this->pairing_pending_ = false;
+                ESP_LOGE(TAG, "[%s] Pairing failed", this->name_.c_str());
+            }
+        }
+        return;
+    }
+
+    if (length == 10) {
+        // device_state: timer(1) target_temp(2) actual_temp(2) o1(1) o2(1) remaining(2) counter(1)
+        float target_temp  = read_temp(payload + 1);
+        float actual_temp  = read_temp(payload + 3);
+        bool  outlet1      = (payload[5] == OUTLET_RUNNING);
+        bool  outlet2      = (payload[6] == OUTLET_RUNNING);
+        uint16_t remaining = static_cast<uint16_t>((payload[7] << 8) | payload[8]);
+
+        ESP_LOGD(TAG, "[%s] State: target=%.1f actual=%.1f o1=%d o2=%d rem=%d",
+                 this->name_.c_str(), target_temp, actual_temp, outlet1, outlet2, remaining);
+
+        if (this->outlet1_switch_)     this->outlet1_switch_->set_state_from_device(outlet1);
+        if (this->outlet2_switch_)     this->outlet2_switch_->set_state_from_device(outlet2);
+        if (this->actual_temp_sensor_) this->actual_temp_sensor_->publish_state(actual_temp);
+        if (this->target_temp_number_) this->target_temp_number_->set_state_from_device(target_temp);
+        return;
+    }
+
+    if (length == 11 && (payload[0] == 1 || payload[0] == 0x80)) {
+        // controls_operated: change_made(1) timer(1) target_temp(2) actual_temp(2) o1(1) o2(1) remaining(2) counter(1)
+        float target_temp  = read_temp(payload + 2);
+        float actual_temp  = read_temp(payload + 4);
+        bool  outlet1      = (payload[6] == OUTLET_RUNNING);
+        bool  outlet2      = (payload[7] == OUTLET_RUNNING);
+
+        if (this->outlet1_switch_)     this->outlet1_switch_->set_state_from_device(outlet1);
+        if (this->outlet2_switch_)     this->outlet2_switch_->set_state_from_device(outlet2);
+        if (this->actual_temp_sensor_) this->actual_temp_sensor_->publish_state(actual_temp);
+        if (this->target_temp_number_) this->target_temp_number_->set_state_from_device(target_temp);
+        return;
+    }
+
+    ESP_LOGD(TAG, "[%s] Unhandled payload length %d", this->name_.c_str(), length);
+}
+
 }  // namespace miramode
 }  // namespace esphome
