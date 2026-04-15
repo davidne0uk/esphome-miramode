@@ -467,6 +467,10 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
 
 void MiraModeSwitch::write_state(bool state) {
     if (!this->parent_) return;
+    if (this->outlet_ != 1 && this->outlet_ != 2) {
+        ESP_LOGE(TAG, "MiraModeSwitch: unexpected outlet_ value %d", this->outlet_);
+        return;
+    }
     bool o1 = (this->outlet_ == 1) ? state : this->parent_->outlet1_state_;
     bool o2 = (this->outlet_ == 2) ? state : this->parent_->outlet2_state_;
     this->parent_->control_outlets(o1, o2, this->parent_->target_temp_);
