@@ -340,5 +340,122 @@ void MiraModeDevice::dispatch_payload_(uint8_t client_slot,
     ESP_LOGD(TAG, "[%s] Unhandled payload length %d", this->name_.c_str(), length);
 }
 
+void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
+                                           esp_gatt_if_t gattc_if,
+                                           esp_ble_gattc_cb_param_t *param) {
+    switch (event) {
+
+    case ESP_GATTC_OPEN_EVT:
+        if (param->open.status != ESP_GATT_OK) {
+            ESP_LOGW(TAG, "[%s] Connection failed: %d", this->name_.c_str(), param->open.status);
+            this->node_state = ClientState::Idle;
+            break;
+        }
+        ESP_LOGI(TAG, "[%s] Connected", this->name_.c_str());
+        // Service discovery triggered automatically by BLEClient after open
+        break;
+
+    case ESP_GATTC_SEARCH_CMPL_EVT: {
+        // Find write and read characteristics by UUID across all services
+        static const char *WRITE_UUID = "bccb0002-ca66-11e5-88a4-0002a5d5c51b";
+        static const char *READ_UUID  = "bccb0003-ca66-11e5-88a4-0002a5d5c51b";
+
+        this->write_handle_ = 0;
+        this->read_handle_  = 0;
+
+        uint16_t conn_id = param->search_cmpl.conn_id;
+
+        // Parse UUID strings into esp_bt_uuid_t (128-bit, little-endian in ESP-IDF)
+        auto parse_uuid128 = [](const char *s, esp_bt_uuid_t &out) {
+            uint8_t buf[16];
+            int idx = 0;
+            for (const char *p = s; *p && idx < 16; p++) {
+                if (*p == '-') continue;
+                uint8_t hi = (*p <= '9') ? (*p - '0') : (*p - 'a' + 10);
+                p++;
+                uint8_t lo = (*p <= '9') ? (*p - '0') : (*p - 'a' + 10);
+                buf[idx++] = (hi << 4) | lo;
+            }
+            // ESP-IDF stores 128-bit UUIDs in little-endian byte order
+            for (int i = 0; i < 16; i++) out.uuid.uuid128[i] = buf[15 - i];
+        };
+
+        esp_bt_uuid_t write_uuid, read_uuid;
+        write_uuid.len = ESP_UUID_LEN_128;
+        read_uuid.len  = ESP_UUID_LEN_128;
+        parse_uuid128(WRITE_UUID, write_uuid);
+        parse_uuid128(READ_UUID, read_uuid);
+
+        uint16_t count = 1;
+        esp_gattc_char_elem_t char_elem;
+        if (esp_ble_gattc_get_char_by_uuid(gattc_if, conn_id, 0x0001, 0xFFFF,
+                                            write_uuid, &char_elem, &count) == ESP_OK
+            && count > 0) {
+            this->write_handle_ = char_elem.char_handle;
+            ESP_LOGI(TAG, "[%s] Write handle: 0x%04X", this->name_.c_str(), this->write_handle_);
+        }
+
+        count = 1;
+        if (esp_ble_gattc_get_char_by_uuid(gattc_if, conn_id, 0x0001, 0xFFFF,
+                                            read_uuid, &char_elem, &count) == ESP_OK
+            && count > 0) {
+            this->read_handle_ = char_elem.char_handle;
+            ESP_LOGI(TAG, "[%s] Read handle: 0x%04X", this->name_.c_str(), this->read_handle_);
+            esp_ble_gattc_register_for_notify(gattc_if,
+                                               this->parent()->get_remote_bda(),
+                                               this->read_handle_);
+        }
+
+        if (!this->write_handle_ || !this->read_handle_)
+            ESP_LOGE(TAG, "[%s] Failed to find Mira characteristics", this->name_.c_str());
+        break;
+    }
+
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+        // Write 0x0001 to CCCD descriptor to enable notifications
+        uint16_t notify_en = 1;
+        uint16_t count = 1;
+        esp_gattc_descr_elem_t descr;
+        esp_bt_uuid_t cccd_uuid;
+        cccd_uuid.len = ESP_UUID_LEN_16;
+        cccd_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
+
+        if (esp_ble_gattc_get_descr_by_char_handle(
+                gattc_if, param->reg_for_notify.conn_id,
+                this->read_handle_, cccd_uuid, &descr, &count) == ESP_OK
+            && count > 0) {
+            esp_ble_gattc_write_char_descr(
+                gattc_if, param->reg_for_notify.conn_id,
+                descr.handle, sizeof(notify_en),
+                reinterpret_cast<uint8_t *>(&notify_en),
+                ESP_GATT_WRITE_TYPE_RSP,
+                ESP_GATT_AUTH_REQ_NONE);
+        }
+        this->node_state = ClientState::Established;
+        ESP_LOGI(TAG, "[%s] Ready", this->name_.c_str());
+        if (this->paired_) this->request_device_state();
+        break;
+    }
+
+    case ESP_GATTC_NOTIFY_EVT:
+        if (param->notify.handle == this->read_handle_) {
+            this->handle_notification_(param->notify.value, param->notify.value_len);
+        }
+        break;
+
+    case ESP_GATTC_DISCONNECT_EVT:
+        this->write_handle_ = 0;
+        this->read_handle_  = 0;
+        this->partial_payload_.clear();
+        this->expected_length_ = 0;
+        this->node_state = ClientState::Idle;
+        ESP_LOGI(TAG, "[%s] Disconnected", this->name_.c_str());
+        break;
+
+    default:
+        break;
+    }
+}
+
 }  // namespace miramode
 }  // namespace esphome
