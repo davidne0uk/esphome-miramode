@@ -151,7 +151,7 @@ void MiraModeDevice::setup() {
 }
 
 void MiraModeDevice::update() {
-    if (this->paired_ && this->node_state == ClientState::Established) {
+    if (this->paired_ && this->node_state == esphome::esp32_ble_tracker::ClientState::ESTABLISHED) {
         this->request_device_state();
     }
 }
@@ -348,7 +348,7 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
     case ESP_GATTC_OPEN_EVT:
         if (param->open.status != ESP_GATT_OK) {
             ESP_LOGW(TAG, "[%s] Connection failed: %d", this->name_.c_str(), param->open.status);
-            this->node_state = ClientState::Idle;
+            this->node_state = esphome::esp32_ble_tracker::ClientState::IDLE;
             break;
         }
         ESP_LOGI(TAG, "[%s] Connected", this->name_.c_str());
@@ -423,11 +423,11 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
         cccd_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
 
         if (esp_ble_gattc_get_descr_by_char_handle(
-                gattc_if, param->reg_for_notify.conn_id,
+                gattc_if, this->parent()->get_conn_id(),
                 this->read_handle_, cccd_uuid, &descr, &count) == ESP_OK
             && count > 0) {
             esp_err_t descr_err = esp_ble_gattc_write_char_descr(
-                gattc_if, param->reg_for_notify.conn_id,
+                gattc_if, this->parent()->get_conn_id(),
                 descr.handle, sizeof(notify_en),
                 reinterpret_cast<uint8_t *>(&notify_en),
                 ESP_GATT_WRITE_TYPE_RSP,
@@ -436,7 +436,7 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
                 ESP_LOGW(TAG, "[%s] write_char_descr (CCCD) failed: %d",
                          this->name_.c_str(), descr_err);
         }
-        this->node_state = ClientState::Established;
+        this->node_state = esphome::esp32_ble_tracker::ClientState::ESTABLISHED;
         ESP_LOGI(TAG, "[%s] Ready", this->name_.c_str());
         if (this->paired_) this->request_device_state();
         break;
@@ -454,7 +454,7 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
         this->partial_payload_.clear();
         this->expected_length_ = 0;
         this->pairing_pending_ = false;  // prevent trigger_pair() lockout on reconnect
-        this->node_state = ClientState::Idle;
+        this->node_state = esphome::esp32_ble_tracker::ClientState::IDLE;
         ESP_LOGI(TAG, "[%s] Disconnected", this->name_.c_str());
         break;
 
