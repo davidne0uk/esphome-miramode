@@ -29,11 +29,11 @@ external_components:
 esp32_ble_tracker:
 
 ble_client:
-  - mac_address: "9F:90:5C:B9:59:DD"
+  - mac_address: "DD:59:B9:5C:90:9F"
     id: ensuite_ble
-  - mac_address: "8A:C7:E5:70:67:EC"
+  - mac_address: "EC:67:70:E5:C7:8A"
     id: master_bath_ble
-  - mac_address: "2E:22:02:D4:8E:E6"
+  - mac_address: "E6:8E:D4:02:22:2E"
     id: master_shower_ble
 
 miramode:
@@ -55,6 +55,8 @@ miramode:
       step: 0.5
     pair_button:
       name: "Pair Ensuite"
+    unpair_button:
+      name: "Unpair Ensuite"
 
   - id: master_bath
     name: "Master Bath"
@@ -74,6 +76,8 @@ miramode:
       step: 0.5
     pair_button:
       name: "Pair Master Bath"
+    unpair_button:
+      name: "Unpair Master Bath"
 
   - id: master_shower
     name: "Master Shower"
@@ -93,3 +97,5 @@ miramode:
       step: 0.5
     pair_button:
       name: "Pair Master Shower"
+    unpair_button:
+      name: "Unpair Master Shower"
