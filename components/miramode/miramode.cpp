@@ -454,7 +454,12 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
         }
         this->node_state = esphome::esp32_ble_tracker::ClientState::ESTABLISHED;
         ESP_LOGI(TAG, "[%s] Ready", this->name_.c_str());
-        if (this->paired_) this->request_device_state();
+        if (this->pairing_pending_) {
+            this->pairing_pending_ = false;  // allow trigger_pair to re-arm
+            this->trigger_pair();
+        } else if (this->paired_) {
+            this->request_device_state();
+        }
         break;
     }
 

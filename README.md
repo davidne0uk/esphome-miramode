@@ -128,22 +128,19 @@ connections after the same interval.
 
 1. Put the shower into pairing mode by pressing and holding the outlet button for
    5 seconds until the LED flashes.
-2. Watch the ESPHome device logs and wait for the line:
-   ```
-   [My Shower] Ready
-   ```
-3. **Immediately** press the **Pair** button entity in Home Assistant. You have
-   roughly 25 seconds before the shower drops the connection.
-4. Confirm pairing succeeded by checking the logs for:
+2. Press the **Pair** button entity in Home Assistant at any point — before or
+   after the ESP32 connects. The pair request is sent as soon as the device
+   reports Ready, so you do not need to watch the logs and time it precisely.
+3. Confirm pairing succeeded by checking the logs for:
    ```
    [My Shower] Sending pair request
    [My Shower] Paired! slot=0
    ```
-5. Credentials are stored to flash and pairing persists across reboots. The shower
-   will now accept commands.
+4. Credentials are stored to flash and pairing persists across reboots.
 
-If the connection drops before you press the button, put the shower back into
-pairing mode and try again on the next connection cycle.
+If pairing fails the shower will drop the connection and the pending state is
+cleared automatically. Put the shower back into pairing mode and press Pair
+again to retry.
 
 ## Unpairing
 
