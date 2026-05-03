@@ -35,7 +35,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/davidne0uk/esphome-miramode
-      ref: v0.2.3
+      ref: v0.2.4
     components: [miramode]
 ```
 

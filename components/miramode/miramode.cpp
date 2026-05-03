@@ -305,22 +305,25 @@ void MiraModeDevice::dispatch_payload_(uint8_t client_slot,
     };
 
     if (length == 1) {
-        bool ok = (payload[0] == 1);
-        ESP_LOGW(TAG, "[%s] Pair response byte: 0x%02X (%s)",
-                 this->name_.c_str(), payload[0], ok ? "OK" : "FAIL");
         if (this->pairing_pending_) {
+            // payload[0] is the assigned client slot number; 0x80 means failure
+            bool ok = (payload[0] != 0x80);
             if (ok) {
                 this->client_id_       = this->pending_client_id_;
-                this->client_slot_     = client_slot;
+                this->client_slot_     = payload[0];
                 this->paired_          = true;
                 this->pairing_pending_ = false;
                 this->save_credentials_();
                 ESP_LOGI(TAG, "[%s] Paired! slot=%d id=0x%08X",
-                         this->name_.c_str(), client_slot, this->client_id_);
+                         this->name_.c_str(), this->client_slot_, this->client_id_);
             } else {
                 this->pairing_pending_ = false;
-                ESP_LOGE(TAG, "[%s] Pairing failed", this->name_.c_str());
+                ESP_LOGE(TAG, "[%s] Pairing failed (0x%02X)", this->name_.c_str(), payload[0]);
             }
+        } else {
+            bool ok = (payload[0] == 1);
+            ESP_LOGI(TAG, "[%s] Command result: %s (0x%02X)",
+                     this->name_.c_str(), ok ? "OK" : "FAIL", payload[0]);
         }
         return;
     }
