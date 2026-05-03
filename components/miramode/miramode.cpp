@@ -264,6 +264,14 @@ void MiraModeDevice::handle_notification_(const uint8_t *data, size_t len) {
         return;
     }
 
+    // Log raw bytes at DEBUG level to aid protocol diagnosis
+    if (len <= 20) {
+        char hex[64];
+        for (size_t i = 0; i < len; i++)
+            snprintf(hex + i * 3, 4, "%02X ", data[i]);
+        ESP_LOGD(TAG, "[%s] Notification (%d): %s", this->name_.c_str(), (int) len, hex);
+    }
+
     if (len < 3) {
         ESP_LOGW(TAG, "[%s] Notification too short (%d bytes)", this->name_.c_str(), (int) len);
         return;
@@ -294,7 +302,8 @@ void MiraModeDevice::dispatch_payload_(uint8_t client_slot,
 
     if (length == 1) {
         bool ok = (payload[0] == 1);
-        ESP_LOGI(TAG, "[%s] Success/failure: %s", this->name_.c_str(), ok ? "OK" : "FAIL");
+        ESP_LOGW(TAG, "[%s] Pair response byte: 0x%02X (%s)",
+                 this->name_.c_str(), payload[0], ok ? "OK" : "FAIL");
         if (this->pairing_pending_) {
             if (ok) {
                 this->client_id_       = this->pending_client_id_;
