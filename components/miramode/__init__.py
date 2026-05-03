@@ -20,14 +20,16 @@ MiraModeDevice = miramode_ns.class_(
 MiraModeSwitch = miramode_ns.class_("MiraModeSwitch", switch.Switch, cg.Component)
 MiraModeSensor = miramode_ns.class_("MiraModeSensor", sensor.Sensor, cg.Component)
 MiraModeNumber = miramode_ns.class_("MiraModeNumber", number.Number, cg.Component)
-MiraModeButton = miramode_ns.class_("MiraModeButton", button.Button, cg.Component)
+MiraModeButton       = miramode_ns.class_("MiraModeButton",       button.Button, cg.Component)
+MiraModeUnpairButton = miramode_ns.class_("MiraModeUnpairButton", button.Button, cg.Component)
 
 CONF_CLIENT_NAME = "client_name"
 CONF_OUTLET1     = "outlet1"
 CONF_OUTLET2     = "outlet2"
 CONF_ACTUAL_TEMP = "actual_temperature"
 CONF_TARGET_TEMP = "target_temperature"
-CONF_PAIR_BUTTON = "pair_button"
+CONF_PAIR_BUTTON   = "pair_button"
+CONF_UNPAIR_BUTTON = "unpair_button"
 CONF_MIN_TEMP    = "min_value"
 CONF_MAX_TEMP    = "max_value"
 CONF_STEP        = "step"
@@ -51,7 +53,8 @@ _TARGET_TEMP_SCHEMA = (
     })
 )
 
-_PAIR_BUTTON_SCHEMA = button.button_schema(MiraModeButton)
+_PAIR_BUTTON_SCHEMA   = button.button_schema(MiraModeButton)
+_UNPAIR_BUTTON_SCHEMA = button.button_schema(MiraModeUnpairButton)
 
 CONFIG_SCHEMA = (
     cv.Schema({
@@ -62,7 +65,8 @@ CONFIG_SCHEMA = (
         cv.Optional(CONF_OUTLET2):     _OUTLET_SCHEMA,
         cv.Optional(CONF_ACTUAL_TEMP): _ACTUAL_TEMP_SCHEMA,
         cv.Optional(CONF_TARGET_TEMP): _TARGET_TEMP_SCHEMA,
-        cv.Optional(CONF_PAIR_BUTTON): _PAIR_BUTTON_SCHEMA,
+        cv.Optional(CONF_PAIR_BUTTON):   _PAIR_BUTTON_SCHEMA,
+        cv.Optional(CONF_UNPAIR_BUTTON): _UNPAIR_BUTTON_SCHEMA,
     })
     .extend(ble_client.BLE_CLIENT_SCHEMA)
     .extend(cv.polling_component_schema("30s"))
@@ -112,3 +116,8 @@ async def to_code(config):
         btn = await button.new_button(config[CONF_PAIR_BUTTON])
         cg.add(btn.set_parent(var))
         cg.add(var.set_pair_button(btn))
+
+    if CONF_UNPAIR_BUTTON in config:
+        btn = await button.new_button(config[CONF_UNPAIR_BUTTON])
+        cg.add(btn.set_parent(var))
+        cg.add(var.set_unpair_button(btn))

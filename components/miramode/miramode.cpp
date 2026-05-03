@@ -138,6 +138,22 @@ void MiraModeDevice::trigger_pair() {
     this->write_chunks_(pkt);
 }
 
+void MiraModeDevice::trigger_unpair() {
+    nvs_handle_t handle;
+    std::string ns = this->nvs_namespace_();
+    esp_err_t err = nvs_open(ns.c_str(), NVS_READWRITE, &handle);
+    if (err == ESP_OK) {
+        nvs_erase_all(handle);
+        nvs_commit(handle);
+        nvs_close(handle);
+    }
+    this->client_id_       = 0;
+    this->client_slot_     = 0;
+    this->paired_          = false;
+    this->pairing_pending_ = false;
+    ESP_LOGI(TAG, "[%s] Unpaired — credentials erased", this->name_.c_str());
+}
+
 void MiraModeDevice::setup() {
     // nvs_flash_init is idempotent for multiple instances; ESP-IDF handles it
     esp_err_t ret = nvs_flash_init();
@@ -491,6 +507,13 @@ void MiraModeNumber::control(float value) {
 void MiraModeButton::press_action() {
     if (!this->parent_) return;
     this->parent_->trigger_pair();
+}
+
+// ── MiraModeUnpairButton ────────────────────────────────────────────────────
+
+void MiraModeUnpairButton::press_action() {
+    if (!this->parent_) return;
+    this->parent_->trigger_unpair();
 }
 
 }  // namespace miramode

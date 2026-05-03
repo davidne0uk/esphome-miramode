@@ -15,6 +15,7 @@ class MiraModeSwitch;
 class MiraModeSensor;
 class MiraModeNumber;
 class MiraModeButton;
+class MiraModeUnpairButton;
 
 class MiraModeDevice : public PollingComponent,
                        public ble_client::BLEClientNode {
@@ -39,9 +40,11 @@ class MiraModeDevice : public PollingComponent,
   void set_actual_temp_sensor(MiraModeSensor *s) { actual_temp_sensor_ = s; }
   void set_target_temp_number(MiraModeNumber *n) { target_temp_number_ = n; }
   void set_pair_button(MiraModeButton *b) { pair_button_ = b; }
+  void set_unpair_button(MiraModeUnpairButton *b) { unpair_button_ = b; }
 
   void control_outlets(bool outlet1, bool outlet2, float temperature);
   void trigger_pair();
+  void trigger_unpair();
   void request_device_state();
 
   // Accessible by entity write handlers
@@ -66,7 +69,8 @@ class MiraModeDevice : public PollingComponent,
   MiraModeSwitch  *outlet2_switch_{nullptr};
   MiraModeSensor  *actual_temp_sensor_{nullptr};
   MiraModeNumber  *target_temp_number_{nullptr};
-  MiraModeButton  *pair_button_{nullptr};
+  MiraModeButton       *pair_button_{nullptr};
+  MiraModeUnpairButton *unpair_button_{nullptr};
 
   std::vector<uint8_t> partial_payload_;
   uint8_t partial_client_slot_{0};
@@ -111,6 +115,14 @@ class MiraModeNumber : public number::Number, public Component {
 };
 
 class MiraModeButton : public button::Button, public Component {
+ public:
+  void set_parent(MiraModeDevice *p) { parent_ = p; }
+ protected:
+  void press_action() override;
+  MiraModeDevice *parent_{nullptr};
+};
+
+class MiraModeUnpairButton : public button::Button, public Component {
  public:
   void set_parent(MiraModeDevice *p) { parent_ = p; }
  protected:
