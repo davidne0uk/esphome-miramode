@@ -273,7 +273,7 @@ void MiraModeDevice::handle_notification_(const uint8_t *data, size_t len) {
         char hex[64];
         for (size_t i = 0; i < len; i++)
             snprintf(hex + i * 3, 4, "%02X ", data[i]);
-        ESP_LOGI(TAG, "[%s] Notification (%d): %s", this->name_.c_str(), (int) len, hex);
+        ESP_LOGD(TAG, "[%s] Notification (%d): %s", this->name_.c_str(), (int) len, hex);
     }
 
     if (len < 3) {
@@ -484,7 +484,7 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
     }
 
     case ESP_GATTC_NOTIFY_EVT:
-        ESP_LOGI(TAG, "[%s] NOTIFY handle=0x%04X read=0x%04X len=%d",
+        ESP_LOGD(TAG, "[%s] NOTIFY handle=0x%04X read=0x%04X len=%d",
                  this->name_.c_str(), param->notify.handle, this->read_handle_,
                  param->notify.value_len);
         if (param->notify.handle == this->read_handle_) {
