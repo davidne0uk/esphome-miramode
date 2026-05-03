@@ -133,9 +133,9 @@ void MiraModeDevice::trigger_pair() {
     payload.insert(payload.end(), name_bytes.begin(), name_bytes.end());
 
     auto pkt = this->build_packet_(payload, MAGIC_ID);
-    ESP_LOGI(TAG, "[%s] Sending pair request (client_id=0x%08X)",
-             this->name_.c_str(), this->pending_client_id_);
-    this->write_chunks_(pkt);
+    ESP_LOGI(TAG, "[%s] Sending pair request (client_id=0x%08X, %d bytes)",
+             this->name_.c_str(), this->pending_client_id_, (int) pkt.size());
+    this->write_raw_(pkt.data(), pkt.size());
 }
 
 void MiraModeDevice::trigger_unpair() {
@@ -155,6 +155,10 @@ void MiraModeDevice::trigger_unpair() {
 }
 
 void MiraModeDevice::setup() {
+    // Request large MTU so the 29-byte pair request fits in a single ATT write.
+    // This is a global setting; calling it from each instance is harmless.
+    esp_ble_gatt_set_local_mtu(512);
+
     // nvs_flash_init is idempotent for multiple instances; ESP-IDF handles it
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -377,7 +381,12 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
             break;
         }
         ESP_LOGI(TAG, "[%s] Connected", this->name_.c_str());
+        esp_ble_gattc_send_mtu_req(gattc_if, param->open.conn_id);
         // Service discovery triggered automatically by BLEClient after open
+        break;
+
+    case ESP_GATTC_CFG_MTU_EVT:
+        ESP_LOGI(TAG, "[%s] MTU negotiated: %d", this->name_.c_str(), param->cfg_mtu.mtu);
         break;
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
