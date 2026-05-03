@@ -23,7 +23,7 @@ external_components:
   - source:
       type: git
       url: https://github.com/davidne0uk/esphome-miramode
-      ref: v0.2.2
+      ref: v0.2.3
     components: [miramode]
 
 esp32_ble_tracker:

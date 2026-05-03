@@ -135,7 +135,7 @@ void MiraModeDevice::trigger_pair() {
     auto pkt = this->build_packet_(payload, MAGIC_ID);
     ESP_LOGI(TAG, "[%s] Sending pair request (client_id=0x%08X, %d bytes)",
              this->name_.c_str(), this->pending_client_id_, (int) pkt.size());
-    this->write_raw_(pkt.data(), pkt.size());
+    this->write_chunks_(pkt);
 }
 
 void MiraModeDevice::trigger_unpair() {
@@ -381,12 +381,11 @@ void MiraModeDevice::gattc_event_handler(esp_gattc_cb_event_t event,
             break;
         }
         ESP_LOGI(TAG, "[%s] Connected", this->name_.c_str());
-        esp_ble_gattc_send_mtu_req(gattc_if, param->open.conn_id);
         // Service discovery triggered automatically by BLEClient after open
         break;
 
     case ESP_GATTC_CFG_MTU_EVT:
-        ESP_LOGI(TAG, "[%s] MTU negotiated: %d", this->name_.c_str(), param->cfg_mtu.mtu);
+        ESP_LOGI(TAG, "[%s] MTU: %d", this->name_.c_str(), param->cfg_mtu.mtu);
         break;
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
